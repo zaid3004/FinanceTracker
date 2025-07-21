@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="text-center mb-4">Welcome, {{ current_user.username }}!</h2>
+
+<form method="post" action="{{ url_for('dashboard') }}" class="mb-3 text-center">
+    <select name="account_select" onchange="this.form.submit()" class="form-select w-auto d-inline-block">
+        {% for account in accounts %}
+            <option value="{{ account.id }}" {% if selected_account and account.id == selected_account.id %}selected{% endif %}>
+                {{ account.name }}
+            </option>
+        {% endfor %}
+    </select>
+</form>
+
+{% if selected_account %}
+<div class="d-flex justify-content-center mb-3 gap-2">
+    <form method="post" action="{{ url_for('rename_account', account_id=selected_account.id) }}">
+        <input name="new_name" class="form-control d-inline w-auto" placeholder="Rename account">
+        <button class="btn btn-warning btn-sm">Rename</button>
+    </form>
+
+    <form method="post" action="{{ url_for('delete_account', account_id=selected_account.id) }}">
+        <button class="btn btn-danger btn-sm">Delete Account</button>
+    </form>
+</div>
+
+<form method="post" action="{{ url_for('add_transaction') }}" class="mb-4">
+    <input type="hidden" name="account_id" value="{{ selected_account.id }}">
+    <div class="row text-center">
+        <div class="col"><input type="date" name="date" class="form-control" required></div>
+        <div class="col">
+            <select name="type" class="form-select">
+                <option value="Income">Income</option>
+                <option value="Expense">Expense</option>
+            </select>
+        </div>
+        <div class="col"><input name="category" placeholder="Category" class="form-control"></div>
+        <div class="col"><input name="amount" placeholder="Amount" class="form-control"></div>
+        <div class="col"><input name="description" placeholder="Description" class="form-control"></div>
+        <div class="col"><button class="btn btn-success">Add</button></div>
+    </div>
+</form>
+
+<div class="d-flex justify-content-between mb-3">
+    <form method="post" action="{{ url_for('clear_transactions', account_id=selected_account.id) }}">
+        <button class="btn btn-danger">Clear All Transactions</button>
+    </form>
+
+    <form method="get" action="{{ url_for('export', account_id=selected_account.id) }}">
+        <button class="btn btn-warning">Export CSV</button>
+    </form>
+
+    <form method="post" action="{{ url_for('import_excel', account_id=selected_account.id) }}" enctype="multipart/form-data">
+        <input type="file" name="file" class="form-control d-inline w-auto" required>
+        <button class="btn btn-success">Import Excel</button>
+    </form>
+</div>
+
+<h4 class="text-center mb-3">Net Balance: <span class="text-{{ 'success' if balance >= 0 else 'danger' }}">{{ "{:,.2f}".format(balance) }}</span></h4>
+
+<table class="table table-bordered text-center">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in transactions %}
+        <tr>
+            <td>{{ t.date }}</td>
+            <td>{{ t.type }}</td>
+            <td>{{ t.category }}</td>
+            <td>{{ "{:,.2f}".format(t.amount) }}</td>
+            <td>{{ t.description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<canvas id="chart" width="400" height="200"></canvas>
+
+{% else %}
+<p class="text-center">No account found. Please create one.</p>
+<form method="post" action="{{ url_for('add_account') }}" class="text-center">
+    <input name="name" placeholder="New Account Name" class="form-control w-50 mx-auto mb-2">
+    <button class="btn btn-primary">Add Account</button>
+</form>
+{% endif %}
+<a href="{{ url_for('logout') }}" class="btn btn-secondary mt-4">Logout</a>
+
+<script>
+const ctx = document.getElementById('chart');
+{% if transactions %}
+const data = {
+    labels: {{ transactions | map(attribute='category') | list | tojson }},
+    datasets: [{
+        label: 'Expenses',
+        data: {{ transactions | map(attribute='amount') | list | tojson }},
+        backgroundColor: '{{ "rgba(255, 99, 132, 0.6)" }}',
+        borderColor: '{{ "rgba(255, 99, 132, 1)" }}',
+        borderWidth: 1
+    }]
+};
+new Chart(ctx, {
+    type: 'bar',
+    data: data,
+    options: {
+        scales: { y: { beginAtZero: true } }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}
