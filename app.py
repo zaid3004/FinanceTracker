@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, redirect, url_for, request, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -8,14 +9,10 @@ import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/finance.db'
+
+# Use DATABASE_URL environment variable, fallback to SQLite for local testing
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/finance.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-import os
-
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'data.db')
-
-
 db = SQLAlchemy(app)
 
 login_manager = LoginManager()
@@ -26,22 +23,22 @@ login_manager.init_app(app)
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+    username = db.Column(db.String(80), unique=True)
+    password = db.Column(db.String(200))
     accounts = db.relationship('Account', backref='user', lazy=True)
 
 class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(50))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     transactions = db.relationship('Transaction', backref='account', lazy=True)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(20), nullable=False)
-    type = db.Column(db.String(10), nullable=False)
-    category = db.Column(db.String(50), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.String(20))
+    type = db.Column(db.String(10))
+    category = db.Column(db.String(50))
+    amount = db.Column(db.Float)
     description = db.Column(db.String(200))
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
 
@@ -120,7 +117,7 @@ def dashboard():
     if sort_by:
         transactions = sorted(transactions, key=lambda t: getattr(t, sort_by))
 
-    balance = sum(t.amount if t.type.lower() == 'income' else -t.amount for t in transactions)
+    balance = sum(t.amount if t.type == 'Income' else -t.amount for t in transactions)
 
     return render_template('dashboard.html', accounts=accounts, transactions=transactions,
                            selected_account=selected_account, balance=balance)
@@ -132,11 +129,11 @@ def dashboard():
 def add_transaction():
     account_id = request.form['account_id']
     date = datetime.strptime(request.form['date'], "%Y-%m-%d").strftime("%d-%m-%Y")
-    type_ = request.form['type']
+    type = request.form['type']
     category = request.form['category']
     amount = float(request.form['amount'].replace(",", ""))
     description = request.form['description']
-    transaction = Transaction(date=date, type=type_, category=category,
+    transaction = Transaction(date=date, type=type, category=category,
                               amount=amount, description=description, account_id=account_id)
     db.session.add(transaction)
     db.session.commit()
